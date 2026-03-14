@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Fevicryl Color Match Lab</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body{
+font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto;
+background:#f3f4f6;
+margin:0;
+padding:40px;
+}
+
+.card{
+max-width:900px;
+margin:auto;
+background:white;
+padding:28px;
+border-radius:14px;
+box-shadow:0 8px 24px rgba(0,0,0,0.08);
+}
+
+h1{
+font-size:24px;
+margin-bottom:24px;
+}
+
+.label{
+font-weight:600;
+margin-bottom:8px;
+}
+
+.inputRow{
+display:flex;
+gap:12px;
+}
+
+input[type=text]{
+flex:1;
+padding:12px;
+border-radius:10px;
+border:1px solid #d1d5db;
+font-size:14px;
+}
+
+button{
+background:#3b82f6;
+color:white;
+border:none;
+padding:12px 22px;
+border-radius:10px;
+font-weight:600;
+cursor:pointer;
+}
+
+button:hover{
+background:#2563eb;
+}
+
+.preview{
+height:120px;
+border-radius:12px;
+margin-top:20px;
+border:1px solid #e5e7eb;
+}
+
+.recipe{
+margin-top:20px;
+padding:16px;
+border-radius:10px;
+background:#f9fafb;
+border:1px solid #e5e7eb;
+font-size:14px;
+line-height:1.6;
+}
+
+.palette{
+margin-top:26px;
+display:grid;
+grid-template-columns:repeat(auto-fill,minmax(120px,1fr));
+gap:10px;
+}
+
+.swatch{
+border-radius:8px;
+padding:8px;
+font-size:12px;
+border:1px solid #e5e7eb;
+text-align:center;
+}
+
+.error{
+color:#b91c1c;
+font-weight:600;
+margin-top:10px;
+}
+
+.note{
+text-align:center;
+margin-top:24px;
+font-size:13px;
+color:#6b7280;
+}
+</style>
+</head>
+<body>
+
+<div class="card">
+
+<h1>Palettable (Kit Version)</h1>
+
+<div class="label">Desired Color</div>
+
+<div class="inputRow">
+<input type="text" id="colorName" placeholder="Type a color name (e.g. terracotta, sage, coral)">
+<button onclick="matchFromName()">Generate Palette</button>
+</div>
+
+<div class="preview" id="targetPreview"></div>
+
+<div class="recipe" id="recipe">Enter a color name to generate a Fevicryl paint recipe.</div>
+<div id="error" class="error"></div>
+
+<div class="palette" id="palette"></div>
+
+<div class="note">
+Colors may vary depending on the paint and surface used and can appear different from what you see on screen.
+</div>
+
+</div>
+
+<script>
+
+const paints=[
+{name:"White",hex:"#ffffff"},
+{name:"Black",hex:"#000000"},
+{name:"Lemon Yellow",hex:"#f5e642"},
+{name:"Chrome Yellow",hex:"#f2c400"},
+{name:"Golden Yellow",hex:"#f1b434"},
+{name:"Crimson",hex:"#c81d25"},
+{name:"Indian Red",hex:"#b23a2b"},
+{name:"Magenta",hex:"#d72663"},
+{name:"Prussian Blue",hex:"#1f3a93"},
+{name:"Ultramarine",hex:"#3f3fbf"},
+{name:"Cerulean Blue",hex:"#2a6fdb"},
+{name:"Sap Green",hex:"#507d2a"},
+{name:"Leaf Green",hex:"#6cc24a"},
+{name:"Dark Green",hex:"#1b5e20"},
+{name:"Orange",hex:"#f57c00"},
+{name:"Pink",hex:"#ff4d6d"},
+{name:"Violet",hex:"#6a4c93"},
+{name:"Turquoise",hex:"#2ec4b6"}
+]
+
+const palette=document.getElementById("palette")
+
+paints.forEach(p=>{
+ const sw=document.createElement("div")
+ sw.className="swatch"
+ sw.style.background=p.hex
+ sw.innerText=p.name
+ palette.appendChild(sw)
+})
+
+function hexToRgb(hex){
+ const bigint=parseInt(hex.replace('#',''),16)
+ return{
+ r:(bigint>>16)&255,
+ g:(bigint>>8)&255,
+ b:bigint&255
+ }
+}
+
+function colorDistance(a,b){
+ return Math.sqrt(
+ (a.r-b.r)**2+
+ (a.g-b.g)**2+
+ (a.b-b.b)**2
+ )
+}
+
+function mix4(p1,p2,p3,p4,w1,w2,w3,w4){
+ const total=w1+w2+w3+w4
+ return{
+ r:(p1.r*w1+p2.r*w2+p3.r*w3+p4.r*w4)/total,
+ g:(p1.g*w1+p2.g*w2+p3.g*w3+p4.g*w4)/total,
+ b:(p1.b*w1+p2.b*w2+p3.b*w3+p4.b*w4)/total
+ }
+}
+
+function findBestMix(target){
+
+let best={dist:999999}
+
+for(let a=0;a<paints.length;a++){
+for(let b=a+1;b<paints.length;b++){
+for(let c=b+1;c<paints.length;c++){
+for(let d=c+1;d<paints.length;d++){
+
+const p1=hexToRgb(paints[a].hex)
+const p2=hexToRgb(paints[b].hex)
+const p3=hexToRgb(paints[c].hex)
+const p4=hexToRgb(paints[d].hex)
+
+const ratios=[
+[50,25,15,10],
+[40,30,20,10],
+[45,25,20,10],
+[35,30,25,10],
+[30,30,25,15]
+]
+
+for(const r of ratios){
+
+const mix=mix4(p1,p2,p3,p4,r[0],r[1],r[2],r[3])
+
+const dist=colorDistance(target,mix)
+
+if(dist<best.dist){
+best={a,b,c,d,dist,ratio:r}
+}
+
+}
+
+}
+}
+}
+}
+
+return best
+}
+
+const colorMap={
+terracotta:"#E2725B",
+terracota:"#E2725B",
+rust:"#B7410E",
+brick:"#9C3B2E",
+clay:"#B66A50",
+ceramic:"#C56F4D",
+coral:"#FF7F50",
+salmon:"#FA8072",
+blush:"#DE5D83",
+rose:"#E3266B",
+dustyrose:"#C08081",
+sage:"#9CAF88",
+olive:"#808000",
+moss:"#8A9A5B",
+forest:"#228B22",
+teal:"#008080",
+turquoise:"#40E0D0",
+aqua:"#00FFFF",
+indigo:"#4B0082",
+navy:"#000080",
+sky:"#87CEEB",
+mustard:"#C69C00",
+ochre:"#CC7722",
+sand:"#C2B280",
+beige:"#F5F5DC",
+tan:"#D2B48C",
+cream:"#FFFDD0",
+charcoal:"#36454F",
+slate:"#708090",
+chocolate:"#7B3F00"
+}
+
+function matchFromName(){
+
+error.innerText=""
+
+let name=document.getElementById("colorName").value.trim().toLowerCase()
+
+if(!name){
+error.innerText="Please enter a color name."
+return
+}
+
+if(!colorMap[name]){
+error.innerText="Color not recognized. Try examples like: terracotta, sage, coral, olive, sand, ochre."
+return
+}
+
+const rgb=hexToRgb(colorMap[name])
+
+const best=findBestMix(rgb)
+
+const p1=paints[best.a]
+const p2=paints[best.b]
+const p3=paints[best.c]
+const p4=paints[best.d]
+
+targetPreview.style.background=`rgb(${rgb.r},${rgb.g},${rgb.b})`
+
+const r=best.ratio
+
+recipe.innerHTML=`
+<strong>Suggested Fevicryl Mix</strong><br><br>
+${p1.name}: ${r[0]}%<br>
+${p2.name}: ${r[1]}%<br>
+${p3.name}: ${r[2]}%<br>
+${p4.name}: ${r[3]}%<br><br>
+Example for 50 ml batch:<br>
+${p1.name}: ${(50*r[0]/100).toFixed(1)} ml<br>
+${p2.name}: ${(50*r[1]/100).toFixed(1)} ml<br>
+${p3.name}: ${(50*r[2]/100).toFixed(1)} ml<br>
+${p4.name}: ${(50*r[3]/100).toFixed(1)} ml
+`
+
+}
+
+</script>
+</body>
+</html>
